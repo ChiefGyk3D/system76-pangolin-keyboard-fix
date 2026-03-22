@@ -143,29 +143,37 @@ echo "   -> keyboard-configurator installed."
 echo ""
 echo "[5/6] Installing keyboard resume fix..."
 
-cat > /etc/systemd/system/fix-keyboard-resume.service << 'EOF'
-[Unit]
-Description=Reset i8042 keyboard controller after suspend/resume
-After=suspend.target hibernate.target hybrid-sleep.target suspend-then-hibernate.target
-
-[Service]
-Type=oneshot
-ExecStart=/bin/bash -c 'echo "i8042" > /sys/bus/platform/drivers/i8042/unbind; sleep 1; echo "i8042" > /sys/bus/platform/drivers/i8042/bind'
-
-[Install]
-WantedBy=suspend.target hibernate.target hybrid-sleep.target suspend-then-hibernate.target
+# systemd-sleep hook: called with 'post suspend/hibernate' on every resume.
+# This is more reliable than a WantedBy=suspend.target service.
+cat > /usr/lib/systemd/system-sleep/fix-keyboard << 'EOF'
+#!/bin/bash
+# Rebind i8042 keyboard controller after resume to fix unresponsive keyboard
+case "$1/$2" in
+  post/*)
+    sleep 0.3
+    echo "i8042" > /sys/bus/platform/drivers/i8042/unbind 2>/dev/null || true
+    sleep 0.5
+    echo "i8042" > /sys/bus/platform/drivers/i8042/bind 2>/dev/null || true
+    ;;
+esac
 EOF
+chmod +x /usr/lib/systemd/system-sleep/fix-keyboard
+echo "   -> systemd-sleep hook installed."
 
-systemctl daemon-reload
-systemctl enable fix-keyboard-resume.service
-echo "   -> Keyboard resume fix installed."
+# Remove old broken service if present
+if [[ -f /etc/systemd/system/fix-keyboard-resume.service ]]; then
+    systemctl disable fix-keyboard-resume.service 2>/dev/null || true
+    rm -f /etc/systemd/system/fix-keyboard-resume.service
+    systemctl daemon-reload
+fi
 
-# Add i8042.reset kernel parameter
+# Add i8042.reset=1 kernel parameter (handles both single- and double-quoted CMDLINE)
 GRUB_FILE="/etc/default/grub"
 if [[ -f "$GRUB_FILE" ]]; then
     if ! grep -q "i8042.reset=1" "$GRUB_FILE"; then
         cp "$GRUB_FILE" "${GRUB_FILE}.bak.$(date +%Y%m%d%H%M%S)"
-        sed -i 's/\(GRUB_CMDLINE_LINUX_DEFAULT="[^"]*\)/\1 i8042.reset=1/' "$GRUB_FILE"
+        # Handle both single-quoted and double-quoted GRUB_CMDLINE_LINUX_DEFAULT
+        sed -i "s/\(GRUB_CMDLINE_LINUX_DEFAULT=['\"][^'\"]*\)/\1 i8042.reset=1/" "$GRUB_FILE"
         update-grub 2>/dev/null || grub-mkconfig -o /boot/grub/grub.cfg 2>/dev/null || true
         echo "   -> Added i8042.reset=1 kernel parameter."
     else

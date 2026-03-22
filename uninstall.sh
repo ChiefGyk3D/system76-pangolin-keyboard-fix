@@ -14,6 +14,8 @@ echo ""
 
 # Remove keyboard resume fix
 echo "[1/4] Removing keyboard resume fix..."
+rm -f /usr/lib/systemd/system-sleep/fix-keyboard
+# Also clean up old service name if still present from a previous install
 systemctl disable --now fix-keyboard-resume.service 2>/dev/null || true
 rm -f /etc/systemd/system/fix-keyboard-resume.service
 rm -f /etc/systemd/sleep.conf.d/s2idle.conf
