@@ -19,7 +19,6 @@ if [[ $EUID -ne 0 ]]; then
     exit 1
 fi
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BUILD_DIR="/tmp/pangolin-keyboard-build"
 
 echo "============================================"
@@ -73,7 +72,7 @@ mkdir -p /usr/src/system76-$VER/src
 cp Makefile Kbuild /usr/src/system76-$VER/
 cp src/*.c src/Kbuild /usr/src/system76-$VER/src/
 
-cat > /usr/src/system76-$VER/dkms.conf << DKMSEOF
+cat >/usr/src/system76-$VER/dkms.conf <<DKMSEOF
 PACKAGE_NAME="system76"
 PACKAGE_VERSION="$VER"
 MAKE="make -C \${kernel_source_dir} M=\${dkms_tree}/\${PACKAGE_NAME}/\${PACKAGE_VERSION}/build modules"
@@ -91,8 +90,8 @@ echo "   -> system76-dkms installed."
 
 # Blacklist the in-tree system76_acpi (doesn't handle keyboard backlight)
 # and ensure system76 loads at boot
-echo "system76" > /etc/modules-load.d/system76.conf
-echo "blacklist system76_acpi" > /etc/modprobe.d/system76.conf
+echo "system76" >/etc/modules-load.d/system76.conf
+echo "blacklist system76_acpi" >/etc/modprobe.d/system76.conf
 
 # Load the driver now
 rmmod system76_acpi 2>/dev/null || true
@@ -145,7 +144,7 @@ echo "[5/6] Installing keyboard resume fix..."
 
 # systemd-sleep hook: called with 'post suspend/hibernate' on every resume.
 # This is more reliable than a WantedBy=suspend.target service.
-cat > /usr/lib/systemd/system-sleep/fix-keyboard << 'EOF'
+cat >/usr/lib/systemd/system-sleep/fix-keyboard <<'EOF'
 #!/bin/bash
 # Rebind i8042 keyboard controller after resume to fix unresponsive keyboard
 case "$1/$2" in
